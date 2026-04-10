@@ -19,6 +19,8 @@ Usage Example:
 ===============================================================================
 */
 
+
+
 DELIMITER $$
 
 CREATE PROCEDURE silver.sp_load_silver_layer()
@@ -127,23 +129,22 @@ SELECT
         ELSE CAST(sls_order_dt AS DATE)
     END,
     CASE
-        WHEN sls_ship_dt = 0 OR LENGTH(sls_ship_dt) != 8 THEN NULL
+        WHEN sls_ship_dt = '' OR LENGTH(sls_ship_dt) != 8 THEN NULL
         ELSE CAST(sls_ship_dt AS DATE)
     END,
     CASE
-        WHEN sls_due_dt = 0 OR LENGTH(sls_due_dt) != 8 THEN NULL
+        WHEN sls_due_dt = '' OR LENGTH(sls_due_dt) != 8 THEN NULL
         ELSE CAST(sls_due_dt AS DATE)
     END,
     CASE
-        WHEN sls_sales = '' 
-             OR sls_sales <= 0 
+        WHEN sls_sales <= 0 
              OR sls_sales != sls_quantity * ABS(sls_price)
         THEN sls_quantity * ABS(sls_price)
         ELSE sls_sales
     END,
     sls_quantity,
     CASE
-        WHEN sls_price = '' OR sls_price <= 0
+        WHEN sls_price <= 0
         THEN sls_sales / NULLIF(sls_quantity, 0)
         ELSE sls_price
     END
@@ -164,16 +165,17 @@ SELECT
     CASE
         WHEN cid LIKE 'NAS%' THEN SUBSTRING(cid, 4, LENGTH(cid))
         ELSE cid
-    END,
+    END AS cid,
     CASE
         WHEN bdate > CURDATE() THEN NULL
         ELSE bdate
-    END,
+    END AS bdate,
     CASE
-        WHEN UPPER(TRIM(gen)) IN ('F', 'FEMALE') THEN 'Female'
-        WHEN UPPER(TRIM(gen)) IN ('M', 'MALE') THEN 'Male'
-        ELSE 'n/a'
-    END
+		WHEN gen IS NULL OR TRIM(REPLACE(gen, '\r', '')) = '' THEN 'n/a'
+		WHEN UPPER(TRIM(REPLACE(gen, '\r', ''))) IN ('F', 'FEMALE') THEN 'Female'
+		WHEN UPPER(TRIM(REPLACE(gen, '\r', ''))) IN ('M', 'MALE') THEN 'Male'
+		ELSE 'n/a'
+	END AS gen
 FROM bronze.erp_cust_az12;
 
 
@@ -189,11 +191,15 @@ INSERT INTO silver.erp_loc_a101 (
 SELECT
     REPLACE(cid, '-', ''),
     CASE
-        WHEN TRIM(cntry) = 'DE' THEN 'Germany'
-        WHEN TRIM(cntry) IN ('US', 'USA') THEN 'United States'
-        WHEN TRIM(cntry) = '' THEN 'n/a'
-        ELSE TRIM(cntry)
-    END
+		WHEN TRIM(REPLACE(cntry, '\r', '')) = '' THEN 'n/a'
+		WHEN TRIM(REPLACE(cntry, '\r', '')) IN ('DE', 'GERMANY') THEN 'Germany'
+		WHEN TRIM(REPLACE(cntry, '\r', '')) IN ('US', 'USA', 'UNITED STATES') THEN 'United States'
+		WHEN TRIM(REPLACE(cntry, '\r', '')) IN ('UK', 'UNITED KINGDOM') THEN 'United Kingdom'
+		WHEN TRIM(REPLACE(cntry, '\r', '')) = 'CANADA' THEN 'Canada'
+		WHEN TRIM(REPLACE(cntry, '\r', '')) = 'FRANCE' THEN 'France'
+		WHEN TRIM(REPLACE(cntry, '\r', '')) = 'AUSTRALIA' THEN 'Australia'
+		ELSE TRIM(REPLACE(cntry, '\r', ''))
+	END AS cntry
 FROM bronze.erp_loc_a101;
 
 
@@ -212,7 +218,12 @@ SELECT
     id,
     cat,
     subcat,
-    maintenance
+    CASE
+		WHEN TRIM(REPLACE(maintenance, '\r', '')) = '' THEN 'n/a'
+		WHEN UPPER(TRIM(REPLACE(maintenance, '\r', ''))) = 'YES' THEN 'Yes'
+		WHEN UPPER(TRIM(REPLACE(maintenance, '\r', ''))) = 'NO' THEN 'No'
+		ELSE TRIM(REPLACE(maintenance, '\r', ''))
+	END AS maintenance
 FROM bronze.erp_px_cat_g1v2;
 
 END$$
